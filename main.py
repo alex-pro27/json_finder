@@ -21,13 +21,6 @@ class JSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-def safe_float(value):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def match_value(term: Term, value: str | int | float | Decimal):
     operation = 'full'
 
