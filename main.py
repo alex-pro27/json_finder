@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Dict, Tuple, Literal
 
 import argparse
@@ -61,8 +62,6 @@ if __name__ == '__main__':
                 if operation not in {'full', 'part'}:
                     print(f'Invalid operation {operation}, valid operations: full, part')
                     exit(1)
-                else:
-                    terms[key.strip()] = term
                 terms[key.strip()] = tuple(opt)
             else:
                 terms[key.strip()] = term
@@ -70,4 +69,9 @@ if __name__ == '__main__':
             print(f'Invalid term {term_raw}, valid example "name:Some string"')
             exit(1)
     results = search_in_json_file(filepath=filepath, terms=terms, operator=operator)
-    print(json.dumps(list(results), indent=2))
+    t = time.time()
+    count_results = 0
+    for res in results:
+        print(json.dumps(res, indent=2))
+        count_results += 1
+    print(f'Found {count_results} records in {time.time() - t} seconds')
