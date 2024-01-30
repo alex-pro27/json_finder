@@ -36,3 +36,16 @@ options:
 Поиск частичным совпадением в title и с использованием оператора AND
 ```bash
 python3 main.py --operator AND -f C:\Users\Василий\data.json -t 'title:family:part' -t 'rand_int:293573'
+```
+
+Поиск по диапазону значений rand_float
+```bash
+python main.py -f C:\Users\Василий\data.json -o AND -t "rand_int:3358:gt" -t "rand_int:3370:lt"
+```
+Доступные операторы сравнения:
+```
+gt - больше
+lt - меньше
+gte - больше или равно
+lte - меньше или равно
+```

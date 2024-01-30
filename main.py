@@ -1,14 +1,68 @@
-from __future__ import annotations
+from __future__ import annotations, generators
 
 import time
-from typing import Dict, Tuple, Literal
+from decimal import Decimal
+from typing import Dict, Tuple, List, Literal, TypeAlias
 
 import argparse
 import ijson
 import json
 
+Term: TypeAlias = str | Tuple[str, str]
+Terms: TypeAlias = Dict[str, Term | List[Term]]
+Operations: TypeAlias = Literal['full', 'part', 'lt', 'gt', 'lte', 'gte']
+Operator: TypeAlias = Literal['OR', 'AND']
 
-def search_in_json_file(filepath, terms: Dict[str, str| Tuple[str, str]], operator: Literal['OR', 'AND'] = 'OR'):
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return str(o)
+        return super().default(o)
+
+
+def safe_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def match_value(term: Term, value: str | int | float | Decimal):
+    operation = 'full'
+
+    if not isinstance(term, list):
+        term = [term]
+    condition = False
+    for search_term in term:
+        if isinstance(search_term, tuple):
+            search_term, operation = search_term
+        if operation == 'full':
+            condition = search_term == str(value).lower()
+        elif operation == 'part':
+            condition = search_term in str(value).lower()
+        else:
+            try:
+                value = float(value)
+                search_term = float(search_term)
+            except (ValueError, TypeError):
+                condition = False
+                break
+            if operation == 'lt':
+                condition = value < search_term
+            elif operation == 'gt':
+                condition = value > search_term
+            elif operation == 'lte':
+                condition = value <= search_term
+            elif operation == 'gte':
+                condition = value >= search_term
+        if not condition:
+            break
+
+    return condition
+
+
+def search_in_json_file(filepath, terms: Terms, operator: Operator = 'OR'):
     with open(filepath, 'rb') as file:
         parser = ijson.parse(file)
         record = {}
@@ -16,14 +70,10 @@ def search_in_json_file(filepath, terms: Dict[str, str| Tuple[str, str]], operat
             if event == 'end_map':
                 found = None
                 for key, search_term in terms.items():
-                    operation = 'full'
-                    if isinstance(search_term, tuple):
-                        search_term, operation = search_term
-                    if operation == 'part':
-                        condition = search_term.lower().strip() in record.get(key, '').lower().strip()
-                    else:
-                        condition = search_term.lower().strip() == record.get(key, '').lower().strip()
-                    if condition:
+                    _value = record.get(key, '')
+                    if _value is None:
+                        continue
+                    if match_value(search_term, _value):
                         found = record
                         if operator == 'OR':
                             break
@@ -35,7 +85,7 @@ def search_in_json_file(filepath, terms: Dict[str, str| Tuple[str, str]], operat
 
                 record = {}
             elif event == 'string' or event == 'number':
-                record[prefix.split('.')[-1]] = str(value)
+                record[prefix.split('.')[-1]] = value
 
 
 def args_parse():
@@ -57,14 +107,23 @@ if __name__ == '__main__':
         try:
             key, term = term_raw.split(':', 1)
             opt = term.rsplit(':', 1)
+            key = key.strip()
+            term_ = None
             if len(opt) > 1:
                 term, operation = opt
-                if operation not in {'full', 'part'}:
+                if operation not in {'full', 'part', 'lt', 'gt', 'lte', 'gte'}:
                     print(f'Invalid operation {operation}, valid operations: full, part')
                     exit(1)
-                terms[key.strip()] = tuple(opt)
+                term_ = tuple([term.strip().lower(), operation])
             else:
-                terms[key.strip()] = term
+                term_ = term.strip().lower()
+            if key not in terms:
+                terms[key] = term_
+            else:
+                if isinstance(terms[key], list):
+                    terms[key].append(term_)
+                else:
+                    terms[key] = [terms[key], term_]
         except (IndexError, ValueError):
             print(f'Invalid term {term_raw}, valid example "name:Some string"')
             exit(1)
@@ -72,6 +131,6 @@ if __name__ == '__main__':
     t = time.time()
     count_results = 0
     for res in results:
-        print(json.dumps(res, indent=2))
+        print(json.dumps(res, indent=2, cls=JSONEncoder))
         count_results += 1
     print(f'Found {count_results} records in {time.time() - t} seconds')
