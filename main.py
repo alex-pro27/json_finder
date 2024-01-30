@@ -66,7 +66,7 @@ if __name__ == '__main__':
                 terms[key.strip()] = tuple(opt)
             else:
                 terms[key.strip()] = term
-        except IndexError:
+        except (IndexError, ValueError):
             print(f'Invalid term {term_raw}, valid example "name:Some string"')
             exit(1)
     results = search_in_json_file(filepath=filepath, terms=terms, operator=operator)
